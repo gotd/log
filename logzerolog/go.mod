@@ -3,7 +3,7 @@ module github.com/gotd/log/logzerolog
 go 1.23.0
 
 require (
-	github.com/gotd/log v0.0.1
+	github.com/gotd/log v0.1.0
 	github.com/rs/zerolog v1.33.0
 )
 

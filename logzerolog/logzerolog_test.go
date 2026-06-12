@@ -113,3 +113,20 @@ func TestAdapterCaller(t *testing.T) {
 		t.Errorf("caller = %q, want logzerolog_test.go", got)
 	}
 }
+
+func TestAdapterCallerHelper(t *testing.T) {
+	var buf bytes.Buffer
+	zl := zerolog.New(&buf).With().Caller().Logger()
+	h := log.For(logzerolog.New(zl))
+
+	h.Info(context.Background(), "m") // caller line
+
+	rec := decode(t, &buf)
+	got, _ := rec["caller"].(string)
+	if strings.Contains(got, "logzerolog.go") || strings.Contains(got, "helper.go") {
+		t.Errorf("caller = %q, want test file not adapter/helper", got)
+	}
+	if !strings.Contains(got, "logzerolog_test.go") {
+		t.Errorf("caller = %q, want logzerolog_test.go", got)
+	}
+}

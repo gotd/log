@@ -124,3 +124,22 @@ func TestAdapterCaller(t *testing.T) {
 		t.Errorf("caller = %q, want logzap_test.go", got)
 	}
 }
+
+func TestAdapterCallerHelper(t *testing.T) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	h := log.For(logzap.New(zap.New(core, zap.AddCaller())))
+
+	h.Info(context.Background(), "m") // caller line
+
+	all := logs.All()
+	if len(all) != 1 {
+		t.Fatalf("got %d entries, want 1", len(all))
+	}
+	got := all[0].Caller.TrimmedPath()
+	if strings.Contains(got, "logzap.go") || strings.Contains(got, "helper.go") {
+		t.Errorf("caller = %q, want test file not adapter/helper", got)
+	}
+	if !strings.Contains(got, "logzap_test.go") {
+		t.Errorf("caller = %q, want logzap_test.go", got)
+	}
+}

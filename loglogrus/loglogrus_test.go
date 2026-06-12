@@ -138,3 +138,21 @@ func TestAdapterCaller(t *testing.T) {
 		t.Errorf("caller = %q, want loglogrus_test.go", got)
 	}
 }
+
+func TestAdapterCallerHelper(t *testing.T) {
+	var buf bytes.Buffer
+	base := newLogger(&buf, logrus.DebugLevel)
+	base.SetReportCaller(true)
+	h := log.For(loglogrus.New(base))
+
+	h.Info(context.Background(), "m") // caller line
+
+	rec := decode(t, &buf)
+	got, _ := rec["file"].(string)
+	if strings.Contains(got, "loglogrus.go") || strings.Contains(got, "helper.go") {
+		t.Errorf("caller = %q, want test file not adapter/helper", got)
+	}
+	if !strings.Contains(got, "loglogrus_test.go") {
+		t.Errorf("caller = %q, want loglogrus_test.go", got)
+	}
+}

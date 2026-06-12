@@ -28,6 +28,10 @@ func New(l *logrus.Logger) log.Logger {
 const (
 	logrusPkg  = "github.com/sirupsen/logrus"
 	adapterPkg = "github.com/gotd/log/loglogrus"
+	// corePkg is the gotd/log facade. Its wrappers (e.g. Helper) sit between the
+	// call site and this adapter, so skip them too. Note corePkg+"." does not
+	// match adapterPkg frames, which live under corePkg+"/loglogrus".
+	corePkg = "github.com/gotd/log"
 )
 
 // callerHook rewrites Entry.Caller to the first frame outside logrus and this
@@ -67,7 +71,8 @@ func adapterCaller() *runtime.Frame {
 	for {
 		f, more := frames.Next()
 		if !strings.HasPrefix(f.Function, logrusPkg+".") &&
-			!strings.HasPrefix(f.Function, adapterPkg+".") {
+			!strings.HasPrefix(f.Function, adapterPkg+".") &&
+			!strings.HasPrefix(f.Function, corePkg+".") {
 			fr := f
 			return &fr
 		}

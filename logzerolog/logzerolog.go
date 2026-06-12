@@ -22,6 +22,9 @@ func New(l zerolog.Logger) log.Logger {
 
 type logger struct {
 	l zerolog.Logger
+	// skip is extra caller frames to drop, set via WithCallerSkip by wrappers
+	// such as log.Helper that add a frame above Log.
+	skip int
 }
 
 func (g logger) Enabled(_ context.Context, level log.Level) bool {
@@ -33,9 +36,10 @@ func (g logger) Log(_ context.Context, level log.Level, msg string, attrs ...log
 	// WithLevel returns a disabled event when the level is gated out; adding
 	// fields and calling Msg on it are no-ops.
 	e := g.l.WithLevel(zerologLevel(level))
-	// Skip this adapter's frame so an enabled caller hook reports the code
-	// calling log.Logger, not logzerolog.Log. No-op when caller is disabled.
-	e = e.CallerSkipFrame(1)
+	// Skip this adapter's frame (plus any wrapper frames) so an enabled caller
+	// hook reports the code calling log.Logger, not logzerolog.Log. No-op when
+	// caller is disabled.
+	e = e.CallerSkipFrame(1 + g.skip)
 	for _, a := range attrs {
 		e = addEvent(e, a)
 	}
@@ -48,7 +52,14 @@ func (g logger) With(attrs ...log.Attr) log.Logger {
 	for _, a := range attrs {
 		c = addContext(c, a)
 	}
-	return logger{l: c.Logger()}
+	return logger{l: c.Logger(), skip: g.skip}
+}
+
+// WithCallerSkip implements log.CallerSkipper, accumulating onto the per-event
+// CallerSkipFrame applied in Log so wrappers such as log.Helper still report
+// their own caller.
+func (g logger) WithCallerSkip(skip int) log.Logger {
+	return logger{l: g.l, skip: g.skip + skip}
 }
 
 func zerologLevel(l log.Level) zerolog.Level {

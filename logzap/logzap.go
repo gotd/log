@@ -47,6 +47,12 @@ func (g logger) Named(name string) log.Logger {
 	return logger{l: g.l.Named(name)}
 }
 
+// WithCallerSkip implements log.CallerSkipper, mapping onto zap.AddCallerSkip so
+// wrappers such as log.Helper still report their own caller.
+func (g logger) WithCallerSkip(skip int) log.Logger {
+	return logger{l: g.l.WithOptions(zap.AddCallerSkip(skip))}
+}
+
 func zapFields(attrs []log.Attr) []zap.Field {
 	fields := make([]zap.Field, len(attrs))
 	for i, a := range attrs {
