@@ -2,10 +2,8 @@ module github.com/gotd/log/logzap
 
 go 1.23.0
 
-replace github.com/gotd/log => ../
-
 require (
-	github.com/gotd/log v0.0.0
+	github.com/gotd/log v0.0.1
 	go.uber.org/zap v1.28.0
 )
 
