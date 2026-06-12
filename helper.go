@@ -7,12 +7,19 @@ import "context"
 //
 // Build one with For; the zero Helper logs to Nop.
 type Helper struct {
-	l Logger
+	l Logger // underlying logger, returned by Logger()
+	// leveled is l with one extra caller-skip frame, so the leveled methods
+	// below report their own caller rather than Helper. It is built once by For
+	// to avoid adjusting caller depth on every call.
+	leveled Logger
 }
 
 // For returns a Helper writing to l, or to Nop if l is nil.
 func For(l Logger) Helper {
-	return Helper{l: OrNop(l)}
+	l = OrNop(l)
+	// The leveled methods add one frame between the call site and the logger;
+	// skip it so caller-computing adapters report the caller, not Helper.
+	return Helper{l: l, leveled: AddCallerSkip(l, 1)}
 }
 
 func (h Helper) logger() Logger {
@@ -22,6 +29,13 @@ func (h Helper) logger() Logger {
 	return h.l
 }
 
+func (h Helper) leveledLogger() Logger {
+	if h.leveled == nil {
+		return Nop
+	}
+	return h.leveled
+}
+
 // Logger returns the underlying Logger, never nil.
 func (h Helper) Logger() Logger {
 	return h.logger()
@@ -29,12 +43,12 @@ func (h Helper) Logger() Logger {
 
 // With returns a Helper whose logger attaches attrs to every record. See With.
 func (h Helper) With(attrs ...Attr) Helper {
-	return Helper{l: With(h.logger(), attrs...)}
+	return For(With(h.logger(), attrs...))
 }
 
 // Named returns a Helper whose logger is tagged with name. See Named.
 func (h Helper) Named(name string) Helper {
-	return Helper{l: Named(h.logger(), name)}
+	return For(Named(h.logger(), name))
 }
 
 // Enabled reports whether a record at level would be recorded.
@@ -44,20 +58,20 @@ func (h Helper) Enabled(ctx context.Context, level Level) bool {
 
 // Debug logs at LevelDebug.
 func (h Helper) Debug(ctx context.Context, msg string, attrs ...Attr) {
-	h.logger().Log(ctx, LevelDebug, msg, attrs...)
+	h.leveledLogger().Log(ctx, LevelDebug, msg, attrs...)
 }
 
 // Info logs at LevelInfo.
 func (h Helper) Info(ctx context.Context, msg string, attrs ...Attr) {
-	h.logger().Log(ctx, LevelInfo, msg, attrs...)
+	h.leveledLogger().Log(ctx, LevelInfo, msg, attrs...)
 }
 
 // Warn logs at LevelWarn.
 func (h Helper) Warn(ctx context.Context, msg string, attrs ...Attr) {
-	h.logger().Log(ctx, LevelWarn, msg, attrs...)
+	h.leveledLogger().Log(ctx, LevelWarn, msg, attrs...)
 }
 
 // Error logs at LevelError.
 func (h Helper) Error(ctx context.Context, msg string, attrs ...Attr) {
-	h.logger().Log(ctx, LevelError, msg, attrs...)
+	h.leveledLogger().Log(ctx, LevelError, msg, attrs...)
 }

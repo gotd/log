@@ -5,6 +5,8 @@ package logslog
 import (
 	"context"
 	"log/slog"
+	"runtime"
+	"time"
 
 	"github.com/gotd/log"
 )
@@ -19,6 +21,9 @@ func New(l *slog.Logger) log.Logger {
 
 type logger struct {
 	l *slog.Logger
+	// skip is the extra caller frames to drop, set via WithCallerSkip by
+	// wrappers such as Helper that add a frame above Log.
+	skip int
 }
 
 func (g logger) Enabled(ctx context.Context, level log.Level) bool {
@@ -36,7 +41,21 @@ func (g logger) Log(ctx context.Context, level log.Level, msg string, attrs ...l
 		sa[i] = slogAttr(a)
 	}
 
-	g.l.LogAttrs(ctx, lvl, msg, sa...)
+	// Capture the caller ourselves and hand the record to the handler directly,
+	// the way slog's own output methods do. Otherwise slog records this adapter
+	// as the source. runtime.Callers skip: 0 is Callers, 1 is Log, 2 is its
+	// caller; g.skip accounts for wrappers such as Helper.
+	var pcs [1]uintptr
+	runtime.Callers(2+g.skip, pcs[:])
+
+	r := slog.NewRecord(time.Now(), lvl, msg, pcs[0])
+	r.AddAttrs(sa...)
+	_ = g.l.Handler().Handle(ctx, r)
+}
+
+// WithCallerSkip implements log.CallerSkipper.
+func (g logger) WithCallerSkip(skip int) log.Logger {
+	return logger{l: g.l, skip: g.skip + skip}
 }
 
 func slogAttr(a log.Attr) slog.Attr {

@@ -18,6 +18,31 @@ type Namer interface {
 	Named(name string) Logger
 }
 
+// CallerSkipper is an optional Logger capability: returning a child Logger that
+// attributes records to a caller skip frames further up the stack. Wrappers
+// that sit between the call site and the adapter (such as Helper) use it so the
+// adapter still reports the real caller. Adapters that compute the caller
+// implement it by mapping onto a native mechanism (e.g. zap.AddCallerSkip);
+// loggers that do not are returned unchanged by AddCallerSkip.
+type CallerSkipper interface {
+	WithCallerSkip(skip int) Logger
+}
+
+// AddCallerSkip returns a Logger that attributes records skip frames further up
+// the stack, using the logger's native mechanism when it implements
+// CallerSkipper. It returns l unchanged when skip is 0 or l does not track
+// caller depth.
+func AddCallerSkip(l Logger, skip int) Logger {
+	l = OrNop(l)
+	if skip == 0 {
+		return l
+	}
+	if s, ok := l.(CallerSkipper); ok {
+		return s.WithCallerSkip(skip)
+	}
+	return l
+}
+
 // With returns a child Logger that attaches attrs to every record. It uses the
 // logger's native With when it implements Wither, otherwise it wraps l. With no
 // attrs it returns l unchanged.

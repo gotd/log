@@ -80,3 +80,64 @@ func TestGroupValue(t *testing.T) {
 		t.Fatalf("unexpected group children: %v", g)
 	}
 }
+
+// skipLogger records the caller-skip carried by the logger that handled each
+// Log call. It implements Wither/Namer (returning itself) so Helper.With and
+// Helper.Named keep mapping onto a CallerSkipper rather than a plain wrapper.
+type skipLogger struct {
+	skip   int
+	logged *[]int
+}
+
+func (s skipLogger) Enabled(context.Context, log.Level) bool { return true }
+
+func (s skipLogger) Log(_ context.Context, _ log.Level, _ string, _ ...log.Attr) {
+	*s.logged = append(*s.logged, s.skip)
+}
+
+func (s skipLogger) With(_ ...log.Attr) log.Logger { return s }
+func (s skipLogger) Named(_ string) log.Logger     { return s }
+func (s skipLogger) WithCallerSkip(skip int) log.Logger {
+	return skipLogger{skip: s.skip + skip, logged: s.logged}
+}
+
+func TestAddCallerSkip(t *testing.T) {
+	var logged []int
+	base := skipLogger{logged: &logged}
+
+	if got := log.AddCallerSkip(base, 0); got != log.Logger(base) {
+		t.Errorf("skip 0 should return the logger unchanged")
+	}
+
+	plain := &capture{}
+	if got := log.AddCallerSkip(plain, 3); got != log.Logger(plain) {
+		t.Errorf("non-skipper should be returned unchanged")
+	}
+
+	log.AddCallerSkip(base, 2).Log(context.Background(), log.LevelInfo, "m")
+	if len(logged) != 1 || logged[0] != 2 {
+		t.Errorf("logged = %v, want [2]", logged)
+	}
+}
+
+func TestHelperAddsCallerSkip(t *testing.T) {
+	var logged []int
+	base := skipLogger{logged: &logged}
+	ctx := context.Background()
+
+	h := log.For(base)
+	h.Info(ctx, "a")                            // Helper adds one frame: skip 1
+	h.With(log.String("k", "v")).Warn(ctx, "b") // skip preserved through With
+	h.Named("n").Error(ctx, "c")                // skip preserved through Named
+	base.Log(ctx, log.LevelInfo, "d")           // direct: skip 0
+
+	want := []int{1, 1, 1, 0}
+	if len(logged) != len(want) {
+		t.Fatalf("logged = %v, want %v", logged, want)
+	}
+	for i := range want {
+		if logged[i] != want[i] {
+			t.Errorf("logged[%d] = %d, want %d", i, logged[i], want[i])
+		}
+	}
+}

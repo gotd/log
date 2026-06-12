@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,5 +70,37 @@ func TestAdapterLevelGate(t *testing.T) {
 func TestNewNilUsesDefault(t *testing.T) {
 	if logslog.New(nil) == nil {
 		t.Fatal("New(nil) must return a usable logger")
+	}
+}
+
+func TestAdapterCaller(t *testing.T) {
+	newLogger := func(buf *bytes.Buffer) *slog.Logger {
+		h := slog.NewTextHandler(buf, &slog.HandlerOptions{AddSource: true, Level: slog.LevelDebug})
+		return slog.New(h)
+	}
+	ctx := context.Background()
+
+	t.Run("Direct", func(t *testing.T) {
+		var buf bytes.Buffer
+		l := logslog.New(newLogger(&buf))
+		l.Log(ctx, log.LevelInfo, "m") // caller line
+		assertCaller(t, buf.String())
+	})
+
+	t.Run("Helper", func(t *testing.T) {
+		var buf bytes.Buffer
+		h := log.For(logslog.New(newLogger(&buf)))
+		h.Info(ctx, "m") // caller line
+		assertCaller(t, buf.String())
+	})
+}
+
+func assertCaller(t *testing.T, out string) {
+	t.Helper()
+	if strings.Contains(out, "logslog.go:") {
+		t.Errorf("source points at adapter, not caller: %q", out)
+	}
+	if !strings.Contains(out, "logslog_test.go:") {
+		t.Errorf("source = %q, want logslog_test.go", out)
 	}
 }
