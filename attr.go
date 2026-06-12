@@ -21,6 +21,7 @@ const (
 	KindDuration
 	KindTime
 	KindError
+	KindGroup
 )
 
 // Attr is a key-value pair attached to a log record.
@@ -71,6 +72,12 @@ func (v Value) Error() error {
 	return e
 }
 
+// Group returns the value's child attributes, or nil. Valid for KindGroup.
+func (v Value) Group() []Attr {
+	g, _ := v.a.([]Attr)
+	return g
+}
+
 // Any returns the value boxed into an interface, regardless of kind.
 func (v Value) Any() any {
 	switch v.kind {
@@ -90,6 +97,8 @@ func (v Value) Any() any {
 		return v.Time()
 	case KindError:
 		return v.Error()
+	case KindGroup:
+		return v.Group()
 	default:
 		return v.a
 	}
@@ -118,6 +127,8 @@ func (v Value) String() string {
 			return e.Error()
 		}
 		return "<nil>"
+	case KindGroup:
+		return fmt.Sprint(v.Group())
 	default:
 		return fmt.Sprint(v.a)
 	}
@@ -171,6 +182,33 @@ func Time(key string, value time.Time) Attr {
 // a nil-valued error Attr.
 func Error(err error) Attr {
 	return Attr{Key: "error", Value: Value{kind: KindError, a: err}}
+}
+
+// Int32 returns an int32 Attr, stored as int64.
+func Int32(key string, value int32) Attr {
+	return Int64(key, int64(value))
+}
+
+// NamedError returns an error Attr under an explicit key. Unlike Error, which
+// uses the conventional "error" key, this lets callers name the field.
+func NamedError(key string, err error) Attr {
+	return Attr{Key: key, Value: Value{kind: KindError, a: err}}
+}
+
+// Stringer returns an Attr holding value.String(). A nil Stringer yields the
+// string "<nil>".
+func Stringer(key string, value fmt.Stringer) Attr {
+	if value == nil {
+		return String(key, "<nil>")
+	}
+	return String(key, value.String())
+}
+
+// Group returns an Attr whose value is the given child attributes. Adapters
+// render it as a nested object. As a special case, an empty key inlines the
+// children into the parent (like log/slog), matching zap's Inline.
+func Group(key string, attrs ...Attr) Attr {
+	return Attr{Key: key, Value: Value{kind: KindGroup, a: attrs}}
 }
 
 // Any returns an Attr holding an arbitrary value. Prefer the typed constructors

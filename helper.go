@@ -22,6 +22,21 @@ func (h Helper) logger() Logger {
 	return h.l
 }
 
+// Logger returns the underlying Logger, never nil.
+func (h Helper) Logger() Logger {
+	return h.logger()
+}
+
+// With returns a Helper whose logger attaches attrs to every record. See With.
+func (h Helper) With(attrs ...Attr) Helper {
+	return Helper{l: With(h.logger(), attrs...)}
+}
+
+// Named returns a Helper whose logger is tagged with name. See Named.
+func (h Helper) Named(name string) Helper {
+	return Helper{l: Named(h.logger(), name)}
+}
+
 // Enabled reports whether a record at level would be recorded.
 func (h Helper) Enabled(ctx context.Context, level Level) bool {
 	return h.logger().Enabled(ctx, level)

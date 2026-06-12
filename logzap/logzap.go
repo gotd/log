@@ -32,12 +32,36 @@ func (g logger) Log(_ context.Context, level log.Level, msg string, attrs ...log
 		return
 	}
 
+	ce.Write(zapFields(attrs)...)
+}
+
+// With implements log.Wither, mapping onto zap.Logger.With.
+func (g logger) With(attrs ...log.Attr) log.Logger {
+	return logger{l: g.l.With(zapFields(attrs)...)}
+}
+
+// Named implements log.Namer, mapping onto zap.Logger.Named.
+func (g logger) Named(name string) log.Logger {
+	return logger{l: g.l.Named(name)}
+}
+
+func zapFields(attrs []log.Attr) []zap.Field {
 	fields := make([]zap.Field, len(attrs))
 	for i, a := range attrs {
 		fields[i] = zapField(a)
 	}
+	return fields
+}
 
-	ce.Write(fields...)
+// attrObject adapts a group of attrs to a zapcore.ObjectMarshaler so nested
+// groups render as objects (or inline fields, see zapField).
+type attrObject []log.Attr
+
+func (o attrObject) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	for _, a := range o {
+		zapField(a).AddTo(enc)
+	}
+	return nil
 }
 
 func zapLevel(l log.Level) zapcore.Level {
@@ -72,6 +96,12 @@ func zapField(a log.Attr) zap.Field {
 		return zap.Time(a.Key, v.Time())
 	case log.KindError:
 		return zap.NamedError(a.Key, v.Error())
+	case log.KindGroup:
+		// An empty key inlines the children into the parent (see log.Group).
+		if a.Key == "" {
+			return zap.Inline(attrObject(v.Group()))
+		}
+		return zap.Object(a.Key, attrObject(v.Group()))
 	default:
 		return zap.Any(a.Key, v.Any())
 	}

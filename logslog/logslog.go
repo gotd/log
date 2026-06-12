@@ -58,6 +58,15 @@ func slogAttr(a log.Attr) slog.Attr {
 		return slog.Time(a.Key, v.Time())
 	case log.KindError:
 		return slog.Any(a.Key, v.Error())
+	case log.KindGroup:
+		children := v.Group()
+		args := make([]any, len(children))
+		for i, c := range children {
+			args[i] = slogAttr(c)
+		}
+		// An empty key inlines the children into the parent, matching slog's
+		// own Group semantics and log.Group.
+		return slog.Group(a.Key, args...)
 	default:
 		return slog.Any(a.Key, v.Any())
 	}

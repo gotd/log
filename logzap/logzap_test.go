@@ -56,6 +56,40 @@ func TestAdapter(t *testing.T) {
 	}
 }
 
+func TestAdapterWithNamedGroup(t *testing.T) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	l := logzap.New(zap.New(core))
+
+	l = log.With(l, log.String("base", "1"))
+	l = log.Named(l, "svc")
+
+	ctx := context.Background()
+	l.Log(ctx, log.LevelInfo, "m",
+		log.Group("obj", log.Int("x", 2)),
+		log.Group("", log.String("inlined", "y")),
+	)
+
+	all := logs.All()
+	if len(all) != 1 {
+		t.Fatalf("got %d entries, want 1", len(all))
+	}
+	e := all[0]
+	if e.LoggerName != "svc" {
+		t.Errorf("logger name = %q, want svc", e.LoggerName)
+	}
+	m := e.ContextMap()
+	if m["base"] != "1" {
+		t.Errorf("base = %v", m["base"])
+	}
+	obj, ok := m["obj"].(map[string]any)
+	if !ok || obj["x"] != int64(2) {
+		t.Errorf("obj = %#v", m["obj"])
+	}
+	if m["inlined"] != "y" {
+		t.Errorf("inlined field missing: %#v", m)
+	}
+}
+
 func TestAdapterLevelGate(t *testing.T) {
 	core, logs := observer.New(zapcore.WarnLevel)
 	l := logzap.New(zap.New(core))
