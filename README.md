@@ -41,17 +41,19 @@ h.Info(ctx, "connected", log.String("dc", dc))
 
 ## Modules
 
-| Module                          | Depends on        |
-|---------------------------------|-------------------|
-| `github.com/gotd/log`           | nothing (stdlib)  |
-| `github.com/gotd/log/logslog`   | stdlib `log/slog` |
-| `github.com/gotd/log/logzap`    | `go.uber.org/zap` |
+| Module                            | Depends on                  |
+|-----------------------------------|-----------------------------|
+| `github.com/gotd/log`             | nothing (stdlib)            |
+| `github.com/gotd/log/logslog`     | stdlib `log/slog`           |
+| `github.com/gotd/log/logzap`      | `go.uber.org/zap`           |
+| `github.com/gotd/log/logzerolog`  | `github.com/rs/zerolog`     |
+| `github.com/gotd/log/loglogrus`   | `github.com/sirupsen/logrus`|
 
-`logzap` is a **separate module** so that `go.uber.org/zap` never enters the
-core dependency graph. Import it only if you use zap.
+Each backend adapter is a **separate module** so that its dependency never
+enters the core graph. Import only the one you use.
 
 ## Implementing an adapter
 
 An adapter implements `log.Logger` by switching on `Attr.Value.Kind()` and
 mapping each kind to the backend's typed field; fall back to `Value.Any()` for
-`KindAny`. See `logslog` and `logzap` for ~60-line references.
+`KindAny`. See `logslog`, `logzap`, `logzerolog` and `loglogrus` for references.
