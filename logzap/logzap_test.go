@@ -2,6 +2,7 @@ package logzap_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -102,5 +103,24 @@ func TestAdapterLevelGate(t *testing.T) {
 	l.Log(ctx, log.LevelInfo, "dropped")
 	if logs.Len() != 0 {
 		t.Fatalf("info should be gated, got %d entries", logs.Len())
+	}
+}
+
+func TestAdapterCaller(t *testing.T) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	l := logzap.New(zap.New(core, zap.AddCaller()))
+
+	l.Log(context.Background(), log.LevelInfo, "m") // caller line
+
+	all := logs.All()
+	if len(all) != 1 {
+		t.Fatalf("got %d entries, want 1", len(all))
+	}
+	got := all[0].Caller.TrimmedPath()
+	if strings.Contains(got, "logzap.go") {
+		t.Errorf("caller = %q, want test file not adapter", got)
+	}
+	if !strings.Contains(got, "logzap_test.go") {
+		t.Errorf("caller = %q, want logzap_test.go", got)
 	}
 }

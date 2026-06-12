@@ -15,7 +15,9 @@ import (
 
 // New returns a log.Logger that writes to l.
 func New(l *zap.Logger) log.Logger {
-	return logger{l: l}
+	// Skip one frame so the reported caller is the code calling log.Logger,
+	// not this adapter's Log method.
+	return logger{l: l.WithOptions(zap.AddCallerSkip(1))}
 }
 
 type logger struct {

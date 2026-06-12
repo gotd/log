@@ -6,6 +6,8 @@ package loglogrus
 
 import (
 	"context"
+	"runtime"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 
@@ -13,8 +15,66 @@ import (
 )
 
 // New returns a log.Logger that writes to l.
+//
+// logrus exposes no per-call caller-skip option, so when l has ReportCaller
+// enabled it would report this adapter as the caller. New installs a hook that
+// recomputes the caller from the stack, reporting the code calling log.Logger
+// instead. The hook is a no-op when ReportCaller is disabled.
 func New(l *logrus.Logger) log.Logger {
+	addCallerHook(l)
 	return logger{l: l}
+}
+
+const (
+	logrusPkg  = "github.com/sirupsen/logrus"
+	adapterPkg = "github.com/gotd/log/loglogrus"
+)
+
+// callerHook rewrites Entry.Caller to the first frame outside logrus and this
+// adapter. logrus sets Caller before firing hooks and formats after, so the
+// overwrite takes effect (see logrus Entry.log).
+type callerHook struct{}
+
+func (callerHook) Levels() []logrus.Level { return logrus.AllLevels }
+
+func (callerHook) Fire(e *logrus.Entry) error {
+	if e.Logger == nil || !e.Logger.ReportCaller {
+		return nil
+	}
+	if f := adapterCaller(); f != nil {
+		e.Caller = f
+	}
+	return nil
+}
+
+// addCallerHook installs callerHook on l, skipping if one is already present so
+// repeated New calls on the same logger do not stack hooks.
+func addCallerHook(l *logrus.Logger) {
+	for _, h := range l.Hooks[logrus.PanicLevel] {
+		if _, ok := h.(callerHook); ok {
+			return
+		}
+	}
+	l.AddHook(callerHook{})
+}
+
+// adapterCaller returns the first stack frame outside logrus and this adapter,
+// i.e. the application code that called log.Logger.
+func adapterCaller() *runtime.Frame {
+	pcs := make([]uintptr, 25)
+	n := runtime.Callers(2, pcs)
+	frames := runtime.CallersFrames(pcs[:n])
+	for {
+		f, more := frames.Next()
+		if !strings.HasPrefix(f.Function, logrusPkg+".") &&
+			!strings.HasPrefix(f.Function, adapterPkg+".") {
+			fr := f
+			return &fr
+		}
+		if !more {
+			return nil
+		}
+	}
 }
 
 type logger struct {

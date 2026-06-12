@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -93,5 +94,22 @@ func TestAdapterLevelGate(t *testing.T) {
 	l.Log(ctx, log.LevelInfo, "dropped")
 	if buf.Len() != 0 {
 		t.Fatalf("info should be gated, got %q", buf.String())
+	}
+}
+
+func TestAdapterCaller(t *testing.T) {
+	var buf bytes.Buffer
+	zl := zerolog.New(&buf).With().Caller().Logger()
+	l := logzerolog.New(zl)
+
+	l.Log(context.Background(), log.LevelInfo, "m") // caller line
+
+	rec := decode(t, &buf)
+	got, _ := rec["caller"].(string)
+	if strings.Contains(got, "logzerolog.go") {
+		t.Errorf("caller = %q, want test file not adapter", got)
+	}
+	if !strings.Contains(got, "logzerolog_test.go") {
+		t.Errorf("caller = %q, want logzerolog_test.go", got)
 	}
 }

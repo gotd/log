@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -117,5 +118,23 @@ func TestAdapterLevelGate(t *testing.T) {
 	l.Log(ctx, log.LevelInfo, "dropped")
 	if buf.Len() != 0 {
 		t.Fatalf("info should be gated, got %q", buf.String())
+	}
+}
+
+func TestAdapterCaller(t *testing.T) {
+	var buf bytes.Buffer
+	base := newLogger(&buf, logrus.DebugLevel)
+	base.SetReportCaller(true)
+	l := loglogrus.New(base)
+
+	l.Log(context.Background(), log.LevelInfo, "m") // caller line
+
+	rec := decode(t, &buf)
+	got, _ := rec["file"].(string)
+	if strings.Contains(got, "loglogrus.go") {
+		t.Errorf("caller = %q, want test file not adapter", got)
+	}
+	if !strings.Contains(got, "loglogrus_test.go") {
+		t.Errorf("caller = %q, want loglogrus_test.go", got)
 	}
 }

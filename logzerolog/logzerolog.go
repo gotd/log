@@ -33,6 +33,9 @@ func (g logger) Log(_ context.Context, level log.Level, msg string, attrs ...log
 	// WithLevel returns a disabled event when the level is gated out; adding
 	// fields and calling Msg on it are no-ops.
 	e := g.l.WithLevel(zerologLevel(level))
+	// Skip this adapter's frame so an enabled caller hook reports the code
+	// calling log.Logger, not logzerolog.Log. No-op when caller is disabled.
+	e = e.CallerSkipFrame(1)
 	for _, a := range attrs {
 		e = addEvent(e, a)
 	}
